@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  user
+  admin
+}
+
+enum Gender {
+  male
+  female
+  other
+}
+
+enum Level {
+  easy
+  medium
+  hard
+}
+
+enum MealSource {
+  photo
+  manual
+}
+
+enum ChallengeType {
+  personal
+  community
+}
+
+enum SosStatus {
+  sent
+  delivered
+  no_contact
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  gender       Gender   @default(other)
+  age          Int?
+  height       Float?
+  weight       Float?
+  role         Role     @default(user)
+  isActive     Boolean  @default(true)
+  points       Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  profile           Profile?
+  workoutPlans      WorkoutPlan[]
+  sessions          WorkoutSession[]
+  meals             Meal[]
+  moods             MoodEntry[]
+  posts             Post[]
+  postLikes         PostLike[]
+  comments          PostComment[]
+  challengeEntries  ChallengeParticipant[]
+  rewards           Reward[]
+  sosAlerts         SosAlert[]
+  emergencyContacts EmergencyContact[]
+}
+
+model Profile {
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dietaryPreferences String?
+  medicalNotes       String?
+  measurements       Json?
+  activityLevel      String?
+  currentGoal        String?
+  targetGoal         String?
+  level              Level   @default(easy)
+}
+
+model WorkoutPlan {
+  id            String     @id @default(cuid())
+  userId        String?
+  user          User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  goals         String?
+  category      String     @default("Cardio")
+  durationMin   Int        @default(30)
+  caloriesEst   Int        @default(0)
+  level         Level      @default(easy)
+  isAiGenerated Boolean    @default(false)
+  isStock       Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  exercises     Exercise[]
+  sessions      WorkoutSession[]
+}
+
+model Exercise {
+  id            String      @id @default(cuid())
+  workoutPlanId String
+  workoutPlan   WorkoutPlan @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+  name          String
+  sets          Int         @default(3)
+  reps          Int         @default(10)
+  restSeconds   Int         @default(30)
+  timerSeconds  Int?
+  videoUrl      String?
+  order         Int         @default(0)
+}
+
+model WorkoutSession {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutPlanId  String
+  workoutPlan    WorkoutPlan  @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+  startedAt      DateTime     @default(now())
+  completedAt    DateTime?
+  caloriesBurned Int          @default(0)
+  exercisesDone  Int          @default(0)
+  exercisesTotal Int          @default(0)
+}
+
+model Meal {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  calories     Int        @default(0)
+  protein      Float      @default(0)
+  carbs        Float      @default(0)
+  fat          Float      @default(0)
+  source       MealSource @default(manual)
+  imageUrl     String?
+  aiConfidence Float?
+  mealType     String     @default("Breakfast")
+  timestamp    DateTime   @default(now())
+}
+
+model MoodEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mood      String
+  intensity Int      @default(3)
+  notes     String?
+  timestamp DateTime @default(now())
+}
+
+model Post {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  mediaUrl  String?
+  visibility String       @default("public")
+  createdAt DateTime      @default(now())
+  likes     PostLike[]
+  comments  PostComment[]
+}
+
+model PostLike {
+  id     String @id @default(cuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model PostComment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Challenge {
+  id           String                 @id @default(cuid())
+  title        String
+  description  String
+  type         ChallengeType          @default(personal)
+  goalValue    Int                    @default(100)
+  unit         String                 @default("points")
+  points       Int                    @default(100)
+  durationDays Int                    @default(30)
+  createdAt    DateTime               @default(now())
+  participants ChallengeParticipant[]
+}
+
+model ChallengeParticipant {
+  id          String    @id @default(cuid())
+  challengeId String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progress    Int       @default(0)
+  completed   Boolean   @default(false)
+  joinedAt    DateTime  @default(now())
+
+  @@unique([challengeId, userId])
+}
+
+model Reward {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge        String
+  pointsAwarded Int     @default(0)
+  awardedAt    DateTime @default(now())
+}
+
+model SosAlert {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lat             Float?
+  lng             Float?
+  address         String?
+  status          SosStatus @default(sent)
+  contactNotified Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+}
+
+model EmergencyContact {
+  id          String @id @default(cuid())
+  userId      String
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  phoneNumber String
+  relation    String?
+}

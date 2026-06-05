@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "FitVerse",
+    "slug": "fitverse",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "fitverse",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#6C5CE7"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-image-picker",
+      "expo-asset"
+    ],
+    "extra": {
+      "apiUrl": "http://localhost:2002"
+    }
+  }
+}
