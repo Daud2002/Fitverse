@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { Link } from "expo-router";
 import { gradients, colors, radius } from "../src/theme";
 import { GradientButton } from "../src/components";
@@ -9,6 +10,8 @@ import { useAuth } from "../src/auth";
 
 const GENDERS = ["male", "female", "other"];
 const LEVELS = ["easy", "medium", "hard"];
+const MAX_CONTACTS = 3;
+const PHONE_RE = /^0\d{10}$/;
 
 export default function Register() {
   const { register } = useAuth();
@@ -16,13 +19,35 @@ export default function Register() {
     name: "", username: "", email: "", password: "",
     gender: "male", weight: "", currentGoal: "", targetGoal: "", level: "easy",
   });
+  const [contacts, setContacts] = useState([{ name: "", phoneNumber: "" }]);
   const [loading, setLoading] = useState(false);
   const set = (k) => (v) => setF((s) => ({ ...s, [k]: v }));
+
+  function setContact(i, key, val) {
+    setContacts((cs) => cs.map((c, j) => (j === i ? { ...c, [key]: val } : c)));
+  }
+  function addContact() {
+    if (contacts.length >= MAX_CONTACTS) return;
+    setContacts((cs) => [...cs, { name: "", phoneNumber: "" }]);
+  }
+  function removeContact(i) {
+    setContacts((cs) => cs.filter((_, j) => j !== i));
+  }
 
   async function onSubmit() {
     if (!f.name || !f.username || !f.email || f.password.length < 6) {
       return Alert.alert("Missing info", "Name, username, email and a 6+ char password are required.");
     }
+
+    // Keep only contacts where the user entered something; both fields then required + valid.
+    const filled = contacts.filter((c) => c.name.trim() || c.phoneNumber.trim());
+    for (const c of filled) {
+      if (!c.name.trim()) return Alert.alert("Emergency contact", "Each contact needs a name.");
+      if (!PHONE_RE.test(c.phoneNumber.trim())) {
+        return Alert.alert("Invalid number", `"${c.name || "Contact"}" must have a valid 11-digit number (e.g. 03001234567).`);
+      }
+    }
+
     setLoading(true);
     try {
       await register({
@@ -35,6 +60,7 @@ export default function Register() {
         currentGoal: f.currentGoal || undefined,
         targetGoal: f.targetGoal || undefined,
         level: f.level,
+        emergencyContacts: filled.map((c) => ({ name: c.name.trim(), phoneNumber: c.phoneNumber.trim() })),
       });
     } catch (e) {
       Alert.alert("Registration failed", e.message);
@@ -66,7 +92,36 @@ export default function Register() {
         <Text style={styles.label}>Difficulty level</Text>
         <Choices options={LEVELS} value={f.level} onChange={set("level")} />
 
-        <GradientButton title="Create account" loading={loading} onPress={onSubmit} style={{ marginTop: 8 }} />
+        <View style={styles.sosHeader}>
+          <Ionicons name="warning" size={18} color={colors.red} />
+          <Text style={styles.sosTitle}>  Emergency Contacts</Text>
+        </View>
+        <Text style={styles.sosHint}>
+          Add up to 3 people we'll alert by SMS if you trigger an SOS. Numbers must be 11 digits (e.g. 03001234567). Optional — you can add these later.
+        </Text>
+
+        {contacts.map((c, i) => (
+          <View key={i} style={styles.contactRow}>
+            <View style={{ flex: 1 }}>
+              <Field icon="person-outline" placeholder={`Contact ${i + 1} name`} value={c.name} onChangeText={(v) => setContact(i, "name", v)} />
+              <Field icon="call-outline" placeholder="Phone (03001234567)" value={c.phoneNumber} onChangeText={(v) => setContact(i, "phoneNumber", v.replace(/[^\d]/g, ""))} keyboardType="number-pad" maxLength={11} />
+            </View>
+            {contacts.length > 1 && (
+              <TouchableOpacity style={styles.removeContact} onPress={() => removeContact(i)}>
+                <Ionicons name="trash-outline" size={18} color={colors.red} />
+              </TouchableOpacity>
+            )}
+          </View>
+        ))}
+
+        {contacts.length < MAX_CONTACTS && (
+          <TouchableOpacity style={styles.addContact} onPress={addContact}>
+            <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
+            <Text style={styles.addContactText}>Add another contact</Text>
+          </TouchableOpacity>
+        )}
+
+        <GradientButton title="Create account" loading={loading} onPress={onSubmit} style={{ marginTop: 16 }} />
         <View style={styles.row}>
           <Text style={styles.muted}>Already have an account? </Text>
           <Link href="/login" style={styles.link}>Login</Link>
@@ -102,4 +157,11 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "center", marginTop: 18 },
   muted: { color: colors.textMuted },
   link: { color: colors.primary, fontWeight: "700" },
+  sosHeader: { flexDirection: "row", alignItems: "center", marginTop: 18, marginBottom: 4 },
+  sosTitle: { fontWeight: "800", color: colors.text, fontSize: 16 },
+  sosHint: { color: colors.textMuted, fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  contactRow: { flexDirection: "row", alignItems: "flex-start" },
+  removeContact: { width: 40, height: 48, alignItems: "center", justifyContent: "center", marginLeft: 4 },
+  addContact: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, borderStyle: "dashed", marginBottom: 4 },
+  addContactText: { color: colors.primary, fontWeight: "700", marginLeft: 8 },
 });

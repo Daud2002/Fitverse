@@ -42,8 +42,9 @@ export default function Home() {
             <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/profile")}>
               <Ionicons name="person" size={18} color="#fff" />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push("/modal/sos")}>
-              <Ionicons name="settings-sharp" size={18} color="#fff" />
+            <TouchableOpacity style={styles.sosBtn} onPress={() => router.push("/modal/sos")}>
+              <Ionicons name="warning" size={18} color="#fff" />
+              <Text style={styles.sosBtnText}>SOS</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -94,6 +95,8 @@ const styles = StyleSheet.create({
   hello: { color: "rgba(255,255,255,0.9)", fontSize: 15 },
   name: { color: "#fff", fontSize: 26, fontWeight: "800" },
   iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center", marginLeft: 8 },
+  sosBtn: { flexDirection: "row", alignItems: "center", height: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.red, marginLeft: 8 },
+  sosBtnText: { color: "#fff", fontWeight: "800", marginLeft: 6, fontSize: 14, letterSpacing: 0.5 },
   grid: { flexDirection: "row" },
   body: { padding: spacing.md },
   sectionRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },

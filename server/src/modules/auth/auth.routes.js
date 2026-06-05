@@ -9,6 +9,16 @@ import { requireAuth } from "../../middleware/auth.js";
 
 const router = Router();
 
+const phoneSchema = z
+  .string()
+  .trim()
+  .regex(/^0\d{10}$/, "Phone number must be exactly 11 digits (e.g. 03001234567)");
+
+const emergencyContactSchema = z.object({
+  name: z.string().min(1),
+  phoneNumber: phoneSchema,
+});
+
 const registerSchema = z.object({
   name: z.string().min(1),
   username: z.string().min(3),
@@ -21,6 +31,7 @@ const registerSchema = z.object({
   currentGoal: z.string().optional(),
   targetGoal: z.string().optional(),
   level: z.enum(["easy", "medium", "hard"]).default("easy"),
+  emergencyContacts: z.array(emergencyContactSchema).max(3, "You can add at most 3 emergency contacts").optional(),
 });
 
 const loginSchema = z.object({
@@ -44,6 +55,7 @@ router.post(
     if (exists) throw new HttpError(409, "Email or username already in use");
 
     const passwordHash = await bcrypt.hash(b.password, 10);
+    const contacts = (b.emergencyContacts || []).slice(0, 3);
     const user = await prisma.user.create({
       data: {
         name: b.name,
@@ -61,6 +73,9 @@ router.post(
             level: b.level,
           },
         },
+        emergencyContacts: contacts.length
+          ? { create: contacts.map((c) => ({ name: c.name.trim(), phoneNumber: c.phoneNumber.trim() })) }
+          : undefined,
       },
       include: { profile: true },
     });

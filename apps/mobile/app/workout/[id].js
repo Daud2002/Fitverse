@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal, Image, Pressable } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { gradients, colors, spacing, radius } from "../../src/theme";
 import { ProgressBar } from "../../src/components";
-import { api } from "../../src/api";
+import { api, API_URL } from "../../src/api";
 
 export default function WorkoutDetail() {
   const { id } = useLocalSearchParams();
@@ -14,7 +14,7 @@ export default function WorkoutDetail() {
   const [workout, setWorkout] = useState(null);
   const [session, setSession] = useState(null);
   const [done, setDone] = useState(0);
-  const [videoUrl, setVideoUrl] = useState(null);
+  const [videoId, setVideoId] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -49,17 +49,25 @@ export default function WorkoutDetail() {
 
   return (
     <ScrollView style={styles.fill} contentContainerStyle={{ paddingBottom: 40 }}>
-      <LinearGradient colors={["#0F172A", "#1E293B"]} style={styles.hero}>
-        <TouchableOpacity style={styles.back} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={26} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.title}>{workout.name}</Text>
-        <View style={styles.heroMeta}>
-          <Meta icon="time-outline" text={`${workout.durationMin} min`} />
-          <Meta icon="flame-outline" text={`${workout.caloriesEst} cal`} />
-          <Meta icon="barbell-outline" text={`${workout.exercises.length} exercises`} />
-        </View>
-      </LinearGradient>
+      <View style={styles.heroWrap}>
+        {workout.imageUrl ? (
+          <Image source={{ uri: `${API_URL}${workout.imageUrl}` }} style={styles.heroImage} resizeMode="cover" />
+        ) : null}
+        <LinearGradient
+          colors={workout.imageUrl ? ["rgba(15,23,42,0.35)", "rgba(15,23,42,0.92)"] : ["#0F172A", "#1E293B"]}
+          style={styles.hero}
+        >
+          <TouchableOpacity style={styles.back} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={26} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.title}>{workout.name}</Text>
+          <View style={styles.heroMeta}>
+            <Meta icon="time-outline" text={`${workout.durationMin} min`} />
+            <Meta icon="flame-outline" text={`${workout.caloriesEst} cal`} />
+            <Meta icon="barbell-outline" text={`${workout.exercises.length} exercises`} />
+          </View>
+        </LinearGradient>
+      </View>
 
       <View style={{ padding: spacing.md }}>
         <View style={styles.progressCard}>
@@ -86,7 +94,7 @@ export default function WorkoutDetail() {
                 </Text>
               </View>
               {ex.videoUrl ? (
-                <TouchableOpacity style={styles.videoBtn} onPress={() => setVideoUrl(toEmbed(ex.videoUrl))}>
+                <TouchableOpacity style={styles.videoBtn} onPress={() => setVideoId(youtubeId(ex.videoUrl))}>
                   <Ionicons name="play-circle" size={26} color={colors.primary} />
                 </TouchableOpacity>
               ) : null}
@@ -102,13 +110,31 @@ export default function WorkoutDetail() {
         })}
       </View>
 
-      <Modal visible={!!videoUrl} animationType="slide" onRequestClose={() => setVideoUrl(null)}>
-        <View style={{ flex: 1, backgroundColor: "#000" }}>
-          <TouchableOpacity style={styles.closeVideo} onPress={() => setVideoUrl(null)}>
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-          {videoUrl ? <WebView source={{ uri: videoUrl }} allowsFullscreenVideo style={{ flex: 1 }} /> : null}
-        </View>
+      <Modal visible={!!videoId} animationType="fade" transparent onRequestClose={() => setVideoId(null)}>
+        <Pressable style={styles.videoBackdrop} onPress={() => setVideoId(null)}>
+          <Pressable style={styles.videoCard} onPress={() => {}}>
+            <View style={styles.videoBar}>
+              <Text style={styles.videoBarTitle}>Exercise demo</Text>
+              <TouchableOpacity onPress={() => setVideoId(null)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.videoPlayer}>
+              {videoId ? (
+                <WebView
+                  source={{ html: youtubeHtml(videoId), baseUrl: "https://www.youtube.com" }}
+                  originWhitelist={["*"]}
+                  style={styles.webview}
+                  javaScriptEnabled
+                  domStorageEnabled
+                  allowsInlineMediaPlayback
+                  mediaPlaybackRequiresUserAction={false}
+                  allowsFullscreenVideo
+                />
+              ) : null}
+            </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </ScrollView>
   );
@@ -151,9 +177,50 @@ function Timer({ seconds, onDone }) {
   );
 }
 
-function toEmbed(url) {
-  const m = url.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/);
-  return m ? `https://www.youtube.com/embed/${m[1]}?autoplay=1` : url;
+function youtubeId(url) {
+  if (!url) return null;
+  const m = url.match(/(?:v=|youtu\.be\/|embed\/|shorts\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+
+function youtubeHtml(id) {
+  return `<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <style>
+      * { margin: 0; padding: 0; }
+      html, body { background: #000; height: 100%; overflow: hidden; }
+      #player { width: 100%; height: 100%; }
+    </style>
+  </head>
+  <body>
+    <div id="player"></div>
+    <script>
+      var tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.body.appendChild(tag);
+
+      function onYouTubeIframeAPIReady() {
+        new YT.Player('player', {
+          videoId: '${id}',
+          host: 'https://www.youtube.com',
+          playerVars: {
+            autoplay: 1,
+            playsinline: 1,
+            rel: 0,
+            modestbranding: 1,
+            fs: 1,
+            origin: 'https://www.youtube.com'
+          },
+          events: {
+            onReady: function (e) { e.target.playVideo(); }
+          }
+        });
+      }
+    </script>
+  </body>
+</html>`;
 }
 
 function Meta({ icon, text }) {
@@ -167,7 +234,9 @@ function Meta({ icon, text }) {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, backgroundColor: colors.bg },
-  hero: { paddingTop: 56, paddingHorizontal: spacing.md, paddingBottom: 24 },
+  heroWrap: { position: "relative" },
+  heroImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  hero: { paddingTop: 56, paddingHorizontal: spacing.md, paddingBottom: 24, minHeight: 150 },
   back: { marginBottom: 8 },
   title: { color: "#fff", fontSize: 24, fontWeight: "800" },
   heroMeta: { flexDirection: "row", marginTop: 10 },
@@ -194,5 +263,10 @@ const styles = StyleSheet.create({
   completeText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   timerBtn: { flexDirection: "row", alignItems: "center", backgroundColor: colors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.sm },
   timerText: { color: "#fff", fontWeight: "700", marginLeft: 6, fontVariant: ["tabular-nums"] },
-  closeVideo: { position: "absolute", top: 48, right: 20, zIndex: 2 },
+  videoBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.85)", alignItems: "center", justifyContent: "center", padding: spacing.md },
+  videoCard: { width: "100%", maxWidth: 520, backgroundColor: "#000", borderRadius: radius.lg, overflow: "hidden" },
+  videoBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#111827" },
+  videoBarTitle: { color: "#fff", fontWeight: "700", fontSize: 15 },
+  videoPlayer: { width: "100%", aspectRatio: 16 / 9, backgroundColor: "#000" },
+  webview: { flex: 1, backgroundColor: "#000" },
 });

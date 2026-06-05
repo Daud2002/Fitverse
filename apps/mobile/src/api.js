@@ -3,7 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 const API_PORT = 2002;
-const LAN_FALLBACK = "192.168.100.11";
+const LAN_FALLBACK = "172.20.10.10";
 
 function getDevHost() {
   const candidates = [
@@ -36,7 +36,7 @@ function resolveApiUrl() {
   return `http://${LAN_FALLBACK}:${API_PORT}`;
 }
 
-export const API_URL = 'http://192.168.100.11:2002';
+export const API_URL = resolveApiUrl();
 
 const TOKEN_KEY = "fitverse_token";
 

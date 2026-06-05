@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { colors, spacing, radius } from "../../src/theme";
 import { Card, Pill, ScreenTitle, GradientButton, SkeletonList } from "../../src/components";
-import { api } from "../../src/api";
+import { api, API_URL } from "../../src/api";
 
 const CATEGORIES = ["All", "Cardio", "Strength", "Flexibility"];
 const LEVEL_COLOR = { easy: colors.green, medium: colors.orange, hard: colors.red };
@@ -72,17 +72,22 @@ export default function Workout() {
         <>
           {filtered.map((w) => (
             <TouchableOpacity key={w.id} onPress={() => router.push(`/workout/${w.id}`)}>
-              <Card style={styles.wCard}>
-                <View style={[styles.badge, { backgroundColor: LEVEL_COLOR[w.level] || colors.green }]}>
-                  <Text style={styles.badgeText}>{w.level}</Text>
+              <Card style={[styles.wCard, w.imageUrl && styles.wCardImg]}>
+                {w.imageUrl ? (
+                  <Image source={{ uri: `${API_URL}${w.imageUrl}` }} style={styles.cover} resizeMode="cover" />
+                ) : null}
+                <View style={w.imageUrl ? styles.cardBody : null}>
+                  <View style={[styles.badge, { backgroundColor: LEVEL_COLOR[w.level] || colors.green }]}>
+                    <Text style={styles.badgeText}>{w.level}</Text>
+                  </View>
+                  <Text style={styles.wName}>{w.name}{w.isAiGenerated ? "  🤖" : ""}</Text>
+                  <View style={styles.metaRow}>
+                    <Meta icon="time-outline" text={`${w.durationMin} min`} />
+                    <Meta icon="flame-outline" text={`${w.caloriesEst} cal`} />
+                    <Meta icon="barbell-outline" text={`${w.exercises.length} exercises`} />
+                  </View>
+                  <Meta icon="pricetag-outline" text={w.category} />
                 </View>
-                <Text style={styles.wName}>{w.name}{w.isAiGenerated ? "  🤖" : ""}</Text>
-                <View style={styles.metaRow}>
-                  <Meta icon="time-outline" text={`${w.durationMin} min`} />
-                  <Meta icon="flame-outline" text={`${w.caloriesEst} cal`} />
-                  <Meta icon="barbell-outline" text={`${w.exercises.length} exercises`} />
-                </View>
-                <Meta icon="pricetag-outline" text={w.category} />
               </Card>
             </TouchableOpacity>
           ))}
@@ -106,6 +111,9 @@ const styles = StyleSheet.create({
   search: { flexDirection: "row", alignItems: "center", backgroundColor: "#ECECF2", borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 4 },
   searchInput: { flex: 1, paddingVertical: 12, marginLeft: 10, color: colors.text },
   wCard: { marginBottom: 14 },
+  wCardImg: { padding: 0, overflow: "hidden" },
+  cover: { width: "100%", height: 150, backgroundColor: colors.border },
+  cardBody: { padding: spacing.md },
   badge: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.sm, marginBottom: 8 },
   badgeText: { color: "#fff", fontSize: 11, fontWeight: "700", textTransform: "capitalize" },
   wName: { fontSize: 18, fontWeight: "800", color: colors.text, marginBottom: 8 },

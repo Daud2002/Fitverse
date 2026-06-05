@@ -4,6 +4,7 @@ import { prisma } from "../../lib/prisma.js";
 import { asyncHandler, HttpError, paginate } from "../../lib/http.js";
 import { validate } from "../../middleware/validate.js";
 import { requireAuth, requireAdmin } from "../../middleware/auth.js";
+import { saveWorkoutImage } from "../../lib/uploads.js";
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -125,6 +126,7 @@ const planSchema = z.object({
   durationMin: z.number().int().default(30),
   caloriesEst: z.number().int().default(0),
   level: z.enum(["easy", "medium", "hard"]).default("easy"),
+  imageBase64: z.string().optional(),
   exercises: z.array(exerciseSchema).default([]),
 });
 
@@ -133,7 +135,7 @@ router.post(
   validate(planSchema),
   asyncHandler(async (req, res) => {
     const b = req.body;
-    const plan = await prisma.workoutPlan.create({
+    let plan = await prisma.workoutPlan.create({
       data: {
         name: b.name,
         category: b.category,
@@ -145,6 +147,14 @@ router.post(
       },
       include: { exercises: true },
     });
+    if (b.imageBase64) {
+      const imageUrl = await saveWorkoutImage(plan.id, b.imageBase64);
+      plan = await prisma.workoutPlan.update({
+        where: { id: plan.id },
+        data: { imageUrl },
+        include: { exercises: true },
+      });
+    }
     res.status(201).json({ plan });
   })
 );
@@ -157,16 +167,20 @@ router.put(
     const existing = await prisma.workoutPlan.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new HttpError(404, "Plan not found");
     await prisma.exercise.deleteMany({ where: { workoutPlanId: req.params.id } });
+    const data = {
+      name: b.name,
+      category: b.category,
+      durationMin: b.durationMin,
+      caloriesEst: b.caloriesEst,
+      level: b.level,
+      exercises: { create: b.exercises.map((e, i) => ({ ...e, order: i })) },
+    };
+    if (b.imageBase64) {
+      data.imageUrl = await saveWorkoutImage(req.params.id, b.imageBase64);
+    }
     const plan = await prisma.workoutPlan.update({
       where: { id: req.params.id },
-      data: {
-        name: b.name,
-        category: b.category,
-        durationMin: b.durationMin,
-        caloriesEst: b.caloriesEst,
-        level: b.level,
-        exercises: { create: b.exercises.map((e, i) => ({ ...e, order: i })) },
-      },
+      data,
       include: { exercises: true },
     });
     res.json({ plan });
@@ -234,11 +248,24 @@ router.delete(
 router.get(
   "/posts",
   asyncHandler(async (_req, res) => {
-    const items = await prisma.post.findMany({
+    const posts = await prisma.post.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
-      include: { user: { select: { name: true, username: true } } },
+      include: {
+        user: { select: { name: true, username: true, email: true } },
+        _count: { select: { likes: true, comments: true } },
+      },
     });
+    const items = posts.map((p) => ({
+      id: p.id,
+      content: p.content,
+      imageUrl: p.mediaUrl,
+      visibility: p.visibility,
+      createdAt: p.createdAt,
+      user: p.user,
+      likeCount: p._count.likes,
+      commentCount: p._count.comments,
+    }));
     res.json({ items });
   })
 );

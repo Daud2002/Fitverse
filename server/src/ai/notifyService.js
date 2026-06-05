@@ -1,4 +1,5 @@
 import { config, hasTwilio } from "../lib/config.js";
+import { toIntlPhone } from "../lib/phone.js";
 
 export async function reverseGeocode(lat, lng) {
   if (!config.googleMapsKey || lat == null || lng == null) {
@@ -15,8 +16,9 @@ export async function reverseGeocode(lat, lng) {
 }
 
 export async function sendSms(to, body) {
+  const intlTo = toIntlPhone(to);
   if (!hasTwilio()) {
-    console.log(`[SOS demo SMS] to=${to}: ${body}`);
+    console.log(`[SOS demo SMS] to=${intlTo}: ${body}`);
     return { sent: false, demo: true };
   }
   try {
@@ -29,7 +31,7 @@ export async function sendSms(to, body) {
           Authorization: `Basic ${creds}`,
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: new URLSearchParams({ To: to, From: config.twilio.from, Body: body }),
+        body: new URLSearchParams({ To: intlTo, From: config.twilio.from, Body: body }),
       }
     );
     return { sent: res.ok, demo: false };

@@ -9,9 +9,14 @@ import { reverseGeocode, sendSms } from "../../ai/notifyService.js";
 const router = Router();
 router.use(requireAuth);
 
+const MAX_CONTACTS = 3;
+
 const contactSchema = z.object({
   name: z.string().min(1),
-  phoneNumber: z.string().min(5),
+  phoneNumber: z
+    .string()
+    .trim()
+    .regex(/^0\d{10}$/, "Phone number must be exactly 11 digits (e.g. 03001234567)"),
   relation: z.string().optional(),
 });
 
@@ -27,6 +32,8 @@ router.post(
   "/contacts",
   validate(contactSchema),
   asyncHandler(async (req, res) => {
+    const count = await prisma.emergencyContact.count({ where: { userId: req.user.id } });
+    if (count >= MAX_CONTACTS) throw new HttpError(400, `You can add at most ${MAX_CONTACTS} emergency contacts`);
     const contact = await prisma.emergencyContact.create({ data: { ...req.body, userId: req.user.id } });
     res.status(201).json({ contact });
   })

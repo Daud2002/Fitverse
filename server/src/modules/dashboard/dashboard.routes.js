@@ -16,7 +16,7 @@ router.get(
     const weekStart = new Date(dayStart);
     weekStart.setDate(weekStart.getDate() - 7);
 
-    const [calAgg, workoutsCount, mealAgg, user, weekSessions] = await Promise.all([
+    const [calAgg, workoutsCount, mealAgg, user, weekSessions, completedSessions] = await Promise.all([
       prisma.workoutSession.aggregate({
         where: { userId, startedAt: { gte: dayStart } },
         _sum: { caloriesBurned: true },
@@ -28,6 +28,10 @@ router.get(
       }),
       prisma.user.findUnique({ where: { id: userId } }),
       prisma.workoutSession.count({ where: { userId, completedAt: { gte: weekStart } } }),
+      prisma.workoutSession.findMany({
+        where: { userId, completedAt: { not: null } },
+        select: { completedAt: true },
+      }),
     ]);
 
     res.json({
@@ -36,7 +40,7 @@ router.get(
         caloriesBurned: calAgg._sum.caloriesBurned || 0,
         activeMinutes: (weekSessions || 0) * 20,
         workouts: workoutsCount,
-        streakDays: Math.min(workoutsCount, 15),
+        streakDays: computeStreak(completedSessions.map((s) => s.completedAt)),
       },
       todaysGoals: [
         { label: "Weekly Workout Goal", current: weekSessions, target: 5, unit: "workouts" },
@@ -46,5 +50,27 @@ router.get(
     });
   })
 );
+
+function computeStreak(dates) {
+  if (!dates.length) return 0;
+
+  const dayMs = 24 * 60 * 60 * 1000;
+  const toDayNumber = (d) => Math.floor(new Date(d).setHours(0, 0, 0, 0) / dayMs);
+
+  const activeDays = new Set(dates.map(toDayNumber));
+  const today = toDayNumber(new Date());
+
+  let cursor;
+  if (activeDays.has(today)) cursor = today;
+  else if (activeDays.has(today - 1)) cursor = today - 1;
+  else return 0;
+
+  let streak = 0;
+  while (activeDays.has(cursor)) {
+    streak++;
+    cursor--;
+  }
+  return streak;
+}
 
 export default router;
