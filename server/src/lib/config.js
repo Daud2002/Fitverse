@@ -5,6 +5,9 @@ export const config = {
   port: Number(process.env.PORT) || 2002,
   jwtSecret: process.env.JWT_SECRET || "dev-secret",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
+  // Maintenance kill-switch. When false, the mobile app blocks all access and force-logs-out.
+  // Defaults to true so a missing/unset value never locks everyone out by accident.
+  letThemWork: process.env.LET_THEM_WORK !== "false",
   gemini: {
     apiKey: process.env.GEMINI_API_KEY || "",
     baseUrl: process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta",

@@ -1,11 +1,14 @@
-import React, { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, RefreshControl } from "react-native";
+import React, { useState, useCallback, useEffect, useRef } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, RefreshControl, ActivityIndicator, Alert, Modal, Pressable, KeyboardAvoidingView, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { gradients, colors, spacing, radius } from "../../src/theme";
-import { Card, ProgressBar, SkeletonList } from "../../src/components";
+import { Card, ProgressBar, SkeletonList, GradientButton, OutlineButton } from "../../src/components";
+import { MealTypePicker, PortionPicker } from "../../src/mealTypePicker";
 import { api, API_URL } from "../../src/api";
+
+const PAGE_SIZE = 20;
 
 const RANGES = [
   { label: "Today", value: "today" },
@@ -13,8 +16,8 @@ const RANGES = [
   { label: "Month", value: "month" },
 ];
 
-const MEAL_ORDER = ["Breakfast", "Lunch", "Dinner", "Snack"];
-const MEAL_ICON = { Breakfast: "sunny", Lunch: "restaurant", Dinner: "moon", Snack: "cafe" };
+const MEAL_ORDER = ["Breakfast", "Brunch", "Lunch", "Dinner", "Snack"];
+const MEAL_ICON = { Breakfast: "sunny", Brunch: "cafe", Lunch: "restaurant", Dinner: "moon", Snack: "cafe" };
 
 export default function Food() {
   const router = useRouter();
@@ -87,6 +90,8 @@ export default function Food() {
           </TouchableOpacity>
         )}
       </View>
+
+      <ManualEntry onSaved={onRefresh} />
 
       <TouchableOpacity activeOpacity={0.9} onPress={() => router.push("/modal/snap")}>
         <LinearGradient colors={gradients.orange} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.snap}>
@@ -189,12 +194,220 @@ function Macro({ label, value }) {
   );
 }
 
+// "Manual" button that opens a bottom sheet sliding up from the bottom: a search bar
+// over the USDA food catalog with paginated results. Tapping a result shows an add form.
+function ManualEntry({ onSaved }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [items, setItems] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState(null);
+  const debounceRef = useRef(null);
+
+  const run = useCallback(async (q, p) => {
+    if (!q.trim()) {
+      setItems([]);
+      setTotalPages(0);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await api(`/meals/catalog?search=${encodeURIComponent(q.trim())}&page=${p}&pageSize=${PAGE_SIZE}`);
+      setItems((prev) => (p === 1 ? data.items : [...prev, ...data.items]));
+      setPage(data.page);
+      setTotalPages(data.totalPages);
+    } catch (e) {
+      Alert.alert("Search failed", e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setPage(1);
+      run(search, 1);
+    }, 400);
+    return () => clearTimeout(debounceRef.current);
+  }, [search, open, run]);
+
+  function close() {
+    setOpen(false);
+    setSearch("");
+    setItems([]);
+    setSelected(null);
+  }
+
+  async function handleSaved() {
+    close();
+    await onSaved?.();
+  }
+
+  const canLoadMore = page < totalPages;
+
+  return (
+    <>
+      <TouchableOpacity activeOpacity={0.9} onPress={() => setOpen(true)} style={styles.manualBtn}>
+        <Ionicons name="create-outline" size={20} color={colors.primary} />
+        <Text style={styles.manualBtnText}>Manual</Text>
+      </TouchableOpacity>
+
+      <Modal visible={open} animationType="slide" transparent onRequestClose={close}>
+        <Pressable style={styles.sheetBackdrop} onPress={close} />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.sheetWrap}
+          pointerEvents="box-none"
+        >
+          <View style={styles.sheet}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>{selected ? "Add Meal" : "Add Food Manually"}</Text>
+              <TouchableOpacity onPress={selected ? () => setSelected(null) : close} hitSlop={8}>
+                <Ionicons name={selected ? "arrow-back" : "close"} size={22} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {selected ? (
+              <ScrollView keyboardShouldPersistTaps="handled">
+                <CatalogAddForm item={selected} onCancel={() => setSelected(null)} onSaved={handleSaved} />
+              </ScrollView>
+            ) : (
+              <>
+                <View style={styles.manualSearch}>
+                  <Ionicons name="search" size={18} color={colors.textMuted} />
+                  <TextInput
+                    placeholder="Search foods (e.g. biryani, chicken)..."
+                    placeholderTextColor={colors.textMuted}
+                    style={styles.manualSearchInput}
+                    value={search}
+                    onChangeText={setSearch}
+                    autoFocus
+                    returnKeyType="search"
+                  />
+                  {search.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearch("")} hitSlop={8}>
+                      <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <ScrollView style={{ marginTop: 8 }} keyboardShouldPersistTaps="handled">
+                  {items.length === 0 && !loading && (
+                    <Text style={styles.manualEmpty}>
+                      {search.trim() ? "No foods found. Try another search." : "Type a food name to search."}
+                    </Text>
+                  )}
+
+                  {items.map((item) => (
+                    <TouchableOpacity key={item.fdcId} style={styles.catalogRow} activeOpacity={0.8} onPress={() => setSelected(item)}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.catalogName} numberOfLines={2}>{item.name}</Text>
+                        <Text style={styles.catalogMeta}>
+                          {item.per100g.calories} kcal · P{item.per100g.protein} C{item.per100g.carbs} F{item.per100g.fat} (per 100g)
+                        </Text>
+                      </View>
+                      <Ionicons name="add-circle" size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                  ))}
+
+                  {loading && <ActivityIndicator color={colors.primary} style={{ marginVertical: 12 }} />}
+
+                  {canLoadMore && !loading && (
+                    <TouchableOpacity style={styles.loadMore} onPress={() => run(search, page + 1)}>
+                      <Text style={styles.loadMoreText}>Load more</Text>
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+              </>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </>
+  );
+}
+
+// Inline form shown after picking a catalog item: choose portion + meal type, then save.
+function CatalogAddForm({ item, onCancel, onSaved }) {
+  const [portion, setPortion] = useState("Medium");
+  const [mealType, setMealType] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api("/meals", {
+        method: "POST",
+        body: { name: item.name, per100g: item.per100g, portion, source: "manual", mealType },
+      });
+      onSaved();
+    } catch (e) {
+      Alert.alert("Save failed", e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <View>
+      <Text style={styles.catalogName} numberOfLines={2}>{item.name}</Text>
+      <Text style={styles.catalogMeta}>
+        {item.per100g.calories} kcal · P{item.per100g.protein} C{item.per100g.carbs} F{item.per100g.fat} (per 100g)
+      </Text>
+
+      <Text style={styles.fieldLabel}>Portion size</Text>
+      <PortionPicker value={portion} onChange={setPortion} />
+
+      <Text style={styles.fieldLabel}>Meal type</Text>
+      <MealTypePicker value={mealType} onChange={setMealType} />
+
+      <View style={styles.formBtnRow}>
+        <OutlineButton title="Cancel" onPress={onCancel} style={{ flex: 1, marginRight: 8 }} />
+        <GradientButton
+          title="✓ Add Meal"
+          loading={saving}
+          colors={mealType ? gradients.green : ["#9CA3AF", "#9CA3AF"]}
+          onPress={mealType ? save : undefined}
+          style={{ flex: 1, marginLeft: 8, opacity: mealType ? 1 : 0.7 }}
+        />
+      </View>
+      {!mealType && <Text style={styles.saveHint}>Pick a meal type to save</Text>}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   h: { fontSize: 26, fontWeight: "800", color: colors.text, marginBottom: 12 },
   search: { flexDirection: "row", alignItems: "center", backgroundColor: "#ECECF2", borderRadius: radius.md, paddingHorizontal: 14 },
   searchInput: { flex: 1, paddingVertical: 12, marginLeft: 10, color: colors.text },
   snap: { flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 14, borderRadius: radius.md, marginTop: 12 },
   snapText: { color: "#fff", fontWeight: "700", marginLeft: 8, fontSize: 15 },
+
+  manualBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: "#fff", borderWidth: 1, borderColor: colors.primary, borderRadius: radius.md, paddingVertical: 13, paddingHorizontal: 14, marginTop: 12 },
+  manualBtnText: { color: colors.primary, fontWeight: "700", marginLeft: 8, fontSize: 15 },
+
+  sheetBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheetWrap: { flex: 1, justifyContent: "flex-end" },
+  sheet: { backgroundColor: colors.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.md, paddingBottom: 28, maxHeight: "85%" },
+  sheetHandle: { alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: colors.border, marginBottom: 12 },
+  sheetHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  sheetTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+  manualSearch: { flexDirection: "row", alignItems: "center", backgroundColor: "#ECECF2", borderRadius: radius.md, paddingHorizontal: 14 },
+  manualSearchInput: { flex: 1, paddingVertical: 11, marginLeft: 10, color: colors.text },
+  manualEmpty: { color: colors.textMuted, textAlign: "center", marginTop: 20, marginBottom: 8, fontSize: 13 },
+  catalogRow: { flexDirection: "row", alignItems: "center", backgroundColor: "#F8F8FC", borderRadius: radius.md, padding: 12, marginTop: 8 },
+  catalogName: { color: colors.text, fontWeight: "700", fontSize: 14 },
+  catalogMeta: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
+  loadMore: { backgroundColor: "#ECECF2", borderRadius: radius.md, paddingVertical: 11, alignItems: "center", marginTop: 10 },
+  loadMoreText: { color: colors.primary, fontWeight: "700" },
+  fieldLabel: { color: colors.text, fontWeight: "700", fontSize: 14, marginTop: 14, marginBottom: 8 },
+  formBtnRow: { flexDirection: "row", marginTop: 16 },
+  saveHint: { color: colors.textMuted, fontSize: 12, textAlign: "center", marginTop: 8 },
 
   rangeBar: { flexDirection: "row", backgroundColor: "#ECECF2", borderRadius: radius.pill, padding: 4, marginTop: 16 },
   rangeTab: { flex: 1, paddingVertical: 9, borderRadius: radius.pill, alignItems: "center" },

@@ -18,14 +18,24 @@ const DEMO_FOODS = [
 async function recognizeFoodLabel(imageBase64) {
   if (!hasGemini()) {
     const idx = (imageBase64?.length || 0) % DEMO_FOODS.length;
-    return { label: DEMO_FOODS[idx].name, confidence: DEMO_FOODS[idx].confidence, demo: true };
+    return { isFood: true, label: DEMO_FOODS[idx].name, confidence: DEMO_FOODS[idx].confidence, demo: true };
   }
   const parsed = await geminiVision(
-    'Identify the single food dish in this image. Reply as JSON: {"label":string,"confidence":number 0..1}.',
+    'You are a food recognition system. Look at this image. ' +
+      'Set "isFood" to true ONLY if the image clearly shows an edible food, meal, dish, or drink. ' +
+      'Set "isFood" to false for anything else (people, animals, objects, scenery, screenshots, ' +
+      'text, packaging with no visible food, or anything not clearly edible). ' +
+      'Reply ONLY as JSON: {"isFood":boolean,"label":string,"confidence":number 0..1}. ' +
+      'When isFood is false, "label" may be empty.',
     imageBase64,
     { json: true }
   );
-  return { label: parsed.label, confidence: parsed.confidence ?? 0.8, demo: false };
+  return {
+    isFood: parsed.isFood !== false,
+    label: parsed.label,
+    confidence: parsed.confidence ?? 0.8,
+    demo: false,
+  };
 }
 
 function usdaNutrient(food, id) {
@@ -33,7 +43,48 @@ function usdaNutrient(food, id) {
   return Math.round(n?.value || n?.amount || 0);
 }
 
-async function nutritionFor(label) {
+// Parse the four macros (per 100g, USDA's standard reference basis) out of a USDA food record.
+export function macrosFromUsdaFood(food) {
+  return {
+    calories: usdaNutrient(food, USDA_NUTRIENT.calories),
+    protein: usdaNutrient(food, USDA_NUTRIENT.protein),
+    carbs: usdaNutrient(food, USDA_NUTRIENT.carbs),
+    fat: usdaNutrient(food, USDA_NUTRIENT.fat),
+  };
+}
+
+// Paginated USDA food search for the manual-tracking catalog. Returns lightweight items with
+// per-100g macros plus pagination metadata mirroring USDA's own response.
+export async function searchFoods(query, { page = 1, pageSize = 20 } = {}) {
+  if (!hasUsda()) throw new Error("USDA search is not configured");
+  const url = `${config.usda.baseUrl}/foods/search?api_key=${config.usda.apiKey}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query,
+      pageNumber: page,
+      pageSize,
+      dataType: ["Survey (FNDDS)", "SR Legacy", "Foundation", "Branded"],
+    }),
+  });
+  if (!res.ok) throw new Error(`usda ${res.status}`);
+  const data = await res.json();
+  const items = (data.foods || []).map((food) => ({
+    fdcId: food.fdcId,
+    name: food.description,
+    per100g: macrosFromUsdaFood(food),
+  }));
+  return {
+    items,
+    page: data.currentPage || page,
+    totalPages: data.totalPages || 1,
+    totalHits: data.totalHits || items.length,
+  };
+}
+
+// Look up per-100g nutrition for a food name via USDA (falls back to demo data without a key).
+export async function nutritionPer100g(label) {
   if (!hasUsda()) {
     const match = DEMO_FOODS.find((f) => f.name.toLowerCase() === label.toLowerCase()) || DEMO_FOODS[0];
     return { calories: match.calories, protein: match.protein, carbs: match.carbs, fat: match.fat, demo: true };
@@ -48,32 +99,25 @@ async function nutritionFor(label) {
   const data = await res.json();
   const food = data.foods?.[0];
   if (!food) throw new Error(`usda: no match for "${label}"`);
-  return {
-    calories: usdaNutrient(food, USDA_NUTRIENT.calories),
-    protein: usdaNutrient(food, USDA_NUTRIENT.protein),
-    carbs: usdaNutrient(food, USDA_NUTRIENT.carbs),
-    fat: usdaNutrient(food, USDA_NUTRIENT.fat),
-    demo: false,
-  };
+  return { ...macrosFromUsdaFood(food), demo: false };
 }
 
 export async function recognizeMeal(imageBase64) {
-  try {
-    const { label, confidence } = await recognizeFoodLabel(imageBase64);
-    console.log(`Vision recognized: ${label} (confidence ${confidence})`);
-    const macros = await nutritionFor(label);
-    console.log(`Nutrition lookup for "${label}": ${macros.calories} kcal, P${macros.protein} C${macros.carbs} F${macros.fat}`);
-    return {
-      name: label,
-      calories: macros.calories,
-      protein: macros.protein,
-      carbs: macros.carbs,
-      fat: macros.fat,
-      confidence,
-    };
-  } catch (err) {
-    console.warn("visionService failed, returning demo result:", err.message);
-    const f = DEMO_FOODS[0];
-    return { name: f.name, calories: f.calories, protein: f.protein, carbs: f.carbs, fat: f.fat, confidence: f.confidence };
+  const { isFood, label, confidence } = await recognizeFoodLabel(imageBase64);
+  if (!isFood) {
+    console.log("Vision: no food detected in image");
+    return { isFood: false };
   }
+  console.log(`Vision recognized: ${label} (confidence ${confidence})`);
+  const macros = await nutritionPer100g(label);
+  console.log(`Nutrition lookup for "${label}": ${macros.calories} kcal, P${macros.protein} C${macros.carbs} F${macros.fat}`);
+  return {
+    isFood: true,
+    name: label,
+    calories: macros.calories,
+    protein: macros.protein,
+    carbs: macros.carbs,
+    fat: macros.fat,
+    confidence,
+  };
 }

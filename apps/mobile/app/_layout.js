@@ -4,6 +4,7 @@ import { View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AuthProvider, useAuth } from "../src/auth";
+import { MaintenanceGate } from "../src/maintenance";
 import { colors, spacing } from "../src/theme";
 import { Skeleton, SkeletonList } from "../src/components";
 
@@ -52,7 +53,9 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <StatusBar style="auto" />
       <AuthProvider>
-        <RoutingGate />
+        <MaintenanceGate>
+          <RoutingGate />
+        </MaintenanceGate>
       </AuthProvider>
     </SafeAreaProvider>
   );

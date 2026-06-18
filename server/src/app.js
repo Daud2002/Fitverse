@@ -12,6 +12,7 @@ import gamificationRoutes from "./modules/gamification/gamification.routes.js";
 import sosRoutes from "./modules/sos/sos.routes.js";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
+import systemRoutes from "./modules/system/system.routes.js";
 
 import { errorHandler, notFound } from "./middleware/error.js";
 
@@ -21,6 +22,8 @@ export function createApp() {
   app.use(express.json({ limit: "15mb" }));
 
   app.get("/health", (_req, res) => res.json({ ok: true, service: "fitverse-api" }));
+
+  app.use("/system", systemRoutes);
 
   app.use("/uploads", express.static(UPLOADS_ROOT));
 
