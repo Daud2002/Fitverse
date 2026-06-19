@@ -9,33 +9,44 @@ import { MealTypePicker, PortionPicker } from "../../src/mealTypePicker";
 import { api, API_URL } from "../../src/api";
 
 const PAGE_SIZE = 20;
-
-const RANGES = [
-  { label: "Today", value: "today" },
-  { label: "Week", value: "week" },
-  { label: "Month", value: "month" },
-];
+const HISTORY_DAYS = 7;
 
 const MEAL_ORDER = ["Breakfast", "Brunch", "Lunch", "Dinner", "Snack"];
 const MEAL_ICON = { Breakfast: "sunny", Brunch: "cafe", Lunch: "restaurant", Dinner: "moon", Snack: "cafe" };
+
+// "2026-06-19T..." -> "Yesterday" / "Tue, Jun 17"
+function dayLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const that = new Date(d);
+  that.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today - that) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
 
 export default function Food() {
   const router = useRouter();
   const [summary, setSummary] = useState(null);
   const [meals, setMeals] = useState([]);
-  const [range, setRange] = useState("today");
+  const [history, setHistory] = useState([]);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async (selectedRange) => {
+  const load = useCallback(async () => {
     try {
-      const [s, m] = await Promise.all([
-        api(`/meals/summary?range=${selectedRange}`),
-        api(`/meals?range=${selectedRange}`),
+      const [s, m, h] = await Promise.all([
+        api(`/meals/summary?range=today`),
+        api(`/meals?range=today`),
+        api(`/meals/history?days=${HISTORY_DAYS}`),
       ]);
       setSummary(s);
       setMeals(m.meals || []);
+      // Drop today from the history list — it's already the main summary above.
+      setHistory((h.history || []).filter((d) => dayLabel(d.date) !== "Today"));
     } catch (e) {
       console.warn(e.message);
     }
@@ -45,14 +56,14 @@ export default function Food() {
     useCallback(() => {
       let active = true;
       setLoading(true);
-      load(range).finally(() => active && setLoading(false));
+      load().finally(() => active && setLoading(false));
       return () => { active = false; };
-    }, [load, range])
+    }, [load])
   );
 
   async function onRefresh() {
     setRefreshing(true);
-    await load(range);
+    await load();
     setRefreshing(false);
   }
 
@@ -64,7 +75,7 @@ export default function Food() {
     return acc;
   }, {});
   const groups = MEAL_ORDER.filter((t) => grouped[t]?.length).map((t) => [t, grouped[t]]);
-  const rangeLabel = RANGES.find((r) => r.value === range)?.label || "Today";
+  const rangeLabel = "Today";
 
   return (
     <ScrollView
@@ -100,23 +111,7 @@ export default function Food() {
         </LinearGradient>
       </TouchableOpacity>
 
-      <View style={styles.rangeBar}>
-        {RANGES.map((r) => {
-          const active = range === r.value;
-          return (
-            <TouchableOpacity
-              key={r.value}
-              activeOpacity={0.8}
-              onPress={() => setRange(r.value)}
-              style={[styles.rangeTab, active && styles.rangeTabActive]}
-            >
-              <Text style={[styles.rangeText, active && styles.rangeTextActive]}>{r.label}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      <LinearGradient colors={gradients.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.summaryCard}>
+      <LinearGradient colors={gradients.card} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.summaryCard, { marginTop: 16 }]}>
         <View style={styles.calRow}>
           <View>
             <Text style={styles.summaryLabel}>{rangeLabel} • Calories</Text>
@@ -181,7 +176,79 @@ export default function Food() {
           </View>
         ))
       )}
+
+      {history.length > 0 && (
+        <>
+          <View style={styles.listHeader}>
+            <Text style={styles.section}><Ionicons name="calendar" size={15} color={colors.primary} /> Previous Days</Text>
+          </View>
+          {history.map((d) => (
+            <HistoryRow key={d.date} day={d} />
+          ))}
+        </>
+      )}
     </ScrollView>
+  );
+}
+
+// A collapsible row for one past day: totals always visible; tap to lazy-load that day's meals.
+function HistoryRow({ day }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && items === null) {
+      setLoading(true);
+      try {
+        const iso = day.date.slice(0, 10);
+        const { meals } = await api(`/meals?date=${iso}`);
+        setItems(meals || []);
+      } catch (e) {
+        setItems([]);
+        console.warn(e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  }
+
+  return (
+    <Card style={styles.histCard}>
+      <TouchableOpacity activeOpacity={0.8} onPress={toggle} style={styles.histHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.histDate}>{dayLabel(day.date)}</Text>
+          <Text style={styles.histMeta}>
+            P {day.protein}g • C {day.carbs}g • F {day.fat}g • {day.count} {day.count === 1 ? "meal" : "meals"}
+          </Text>
+        </View>
+        <View style={styles.histCalWrap}>
+          <Text style={styles.histCal}>{day.calories}</Text>
+          <Text style={styles.histCalUnit}>kcal</Text>
+        </View>
+        <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={colors.textMuted} style={{ marginLeft: 8 }} />
+      </TouchableOpacity>
+
+      {open && (
+        <View style={styles.histBody}>
+          {loading ? (
+            <ActivityIndicator color={colors.primary} style={{ marginVertical: 10 }} />
+          ) : items && items.length > 0 ? (
+            items.map((m) => (
+              <View key={m.id} style={styles.histMealRow}>
+                <Ionicons name={MEAL_ICON[m.mealType] || "restaurant"} size={15} color={colors.orange} style={{ marginRight: 8 }} />
+                <Text style={styles.histMealName} numberOfLines={1}>{m.name}</Text>
+                <Text style={styles.histMealCal}>{m.calories} cal</Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.histEmpty}>No meals logged this day.</Text>
+          )}
+        </View>
+      )}
+    </Card>
   );
 }
 
@@ -409,12 +476,6 @@ const styles = StyleSheet.create({
   formBtnRow: { flexDirection: "row", marginTop: 16 },
   saveHint: { color: colors.textMuted, fontSize: 12, textAlign: "center", marginTop: 8 },
 
-  rangeBar: { flexDirection: "row", backgroundColor: "#ECECF2", borderRadius: radius.pill, padding: 4, marginTop: 16 },
-  rangeTab: { flex: 1, paddingVertical: 9, borderRadius: radius.pill, alignItems: "center" },
-  rangeTabActive: { backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
-  rangeText: { color: colors.textMuted, fontWeight: "600", fontSize: 14 },
-  rangeTextActive: { color: colors.primary, fontWeight: "800" },
-
   summaryCard: { borderRadius: radius.lg, padding: spacing.md, marginTop: 14 },
   calRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 },
   summaryLabel: { color: "rgba(255,255,255,0.85)", fontSize: 13, fontWeight: "600", marginBottom: 4 },
@@ -443,6 +504,19 @@ const styles = StyleSheet.create({
   calBadge: { alignItems: "center", marginLeft: 8, minWidth: 48 },
   calBadgeNum: { color: colors.text, fontWeight: "800", fontSize: 16 },
   calBadgeUnit: { color: colors.textMuted, fontSize: 11 },
+
+  histCard: { padding: 0, marginBottom: 8, overflow: "hidden" },
+  histHeader: { flexDirection: "row", alignItems: "center", padding: 14 },
+  histDate: { fontWeight: "800", color: colors.text, fontSize: 15 },
+  histMeta: { color: colors.textMuted, fontSize: 12, marginTop: 3 },
+  histCalWrap: { alignItems: "center", minWidth: 52 },
+  histCal: { color: colors.primary, fontWeight: "800", fontSize: 16 },
+  histCalUnit: { color: colors.textMuted, fontSize: 11 },
+  histBody: { borderTopWidth: 1, borderTopColor: colors.border, paddingHorizontal: 14, paddingVertical: 6 },
+  histMealRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8 },
+  histMealName: { flex: 1, color: colors.text, fontSize: 14 },
+  histMealCal: { color: colors.textMuted, fontSize: 13, fontWeight: "600", marginLeft: 8 },
+  histEmpty: { color: colors.textMuted, fontSize: 13, fontStyle: "italic", paddingVertical: 10 },
 
   emptyWrap: { alignItems: "center", marginTop: 40, paddingHorizontal: 24 },
   emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#ECECF2", alignItems: "center", justifyContent: "center", marginBottom: 12 },

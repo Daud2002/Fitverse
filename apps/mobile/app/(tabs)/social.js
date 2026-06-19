@@ -14,9 +14,10 @@ import {
   Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "expo-router";
-import { colors, spacing, radius } from "../../src/theme";
+import { gradients, colors, spacing, radius } from "../../src/theme";
 import { Card, GradientButton } from "../../src/components";
 import { api, API_URL } from "../../src/api";
 import { useAuth } from "../../src/auth";
@@ -151,46 +152,53 @@ export default function Social() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1 }}
+      style={{ flex: 1, backgroundColor: colors.bg }}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <LinearGradient colors={gradients.header} style={styles.header}>
+        <View>
+          <Text style={styles.headerTitle}>Social Feed</Text>
+          <Text style={styles.headerSub}>Share your journey with the community</Text>
+        </View>
+        <View style={styles.headerIcon}>
+          <Ionicons name="people" size={20} color="#fff" />
+        </View>
+      </LinearGradient>
+
       <FlatList
         data={posts}
         keyExtractor={(item) => item.id}
         style={{ flex: 1 }}
-        contentContainerStyle={{ padding: spacing.md, paddingTop: 56, paddingBottom: 40 }}
+        contentContainerStyle={{ padding: spacing.md, paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
         onEndReached={onEndReached}
         onEndReachedThreshold={0.4}
         ListHeaderComponent={
-          <>
-            <Text style={styles.h}>Social Feed</Text>
-            <Card style={{ marginBottom: 16 }}>
-              <TextInput
-                placeholder="Share your progress..."
-                value={text}
-                onChangeText={setText}
-                style={styles.input}
-                placeholderTextColor={colors.textMuted}
-                multiline
-              />
-              {image && (
-                <View style={styles.previewWrap}>
-                  <Image source={{ uri: image }} style={styles.preview} />
-                  <TouchableOpacity style={styles.removeImg} onPress={clearImage}>
-                    <Ionicons name="close" size={16} color="#fff" />
-                  </TouchableOpacity>
-                </View>
-              )}
-              <View style={styles.composerRow}>
-                <TouchableOpacity style={styles.attachBtn} onPress={pickImage}>
-                  <Ionicons name="image-outline" size={20} color={colors.primary} />
-                  <Text style={styles.attachText}>Photo</Text>
+          <Card style={styles.composer}>
+            <TextInput
+              placeholder="Share your progress..."
+              value={text}
+              onChangeText={setText}
+              style={styles.input}
+              placeholderTextColor={colors.textMuted}
+              multiline
+            />
+            {image && (
+              <View style={styles.previewWrap}>
+                <Image source={{ uri: image }} style={styles.preview} />
+                <TouchableOpacity style={styles.removeImg} onPress={clearImage}>
+                  <Ionicons name="close" size={16} color="#fff" />
                 </TouchableOpacity>
-                <GradientButton title="Post" onPress={submitPost} loading={posting} style={{ flex: 1, marginLeft: 10 }} />
               </View>
-            </Card>
-          </>
+            )}
+            <View style={styles.composerRow}>
+              <TouchableOpacity style={styles.attachBtn} onPress={pickImage}>
+                <Ionicons name="image-outline" size={20} color={colors.primary} />
+                <Text style={styles.attachText}>Photo</Text>
+              </TouchableOpacity>
+              <GradientButton title="Post" onPress={submitPost} loading={posting} style={{ flex: 1, marginLeft: 10 }} />
+            </View>
+          </Card>
         }
         renderItem={({ item }) => (
           <PostCard
@@ -205,7 +213,13 @@ export default function Social() {
           initialLoading ? (
             <ActivityIndicator color={colors.primary} style={{ marginTop: 24 }} />
           ) : (
-            <Text style={styles.empty}>No posts yet. Be the first to share!</Text>
+            <View style={styles.emptyWrap}>
+              <View style={styles.emptyIcon}>
+                <Ionicons name="people-outline" size={28} color={colors.textMuted} />
+              </View>
+              <Text style={styles.emptyTitle}>No posts yet</Text>
+              <Text style={styles.emptyText}>Be the first to share your progress with the community!</Text>
+            </View>
           )
         }
         ListFooterComponent={loadingMore ? <ActivityIndicator color={colors.primary} style={{ marginVertical: 16 }} /> : null}
@@ -281,12 +295,12 @@ function PostCard({ post, currentUserId, onLike, onCommentChange, onDelete }) {
       ) : null}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.action} onPress={() => onLike(post.id)}>
-          <Ionicons name={post.likedByMe ? "heart" : "heart-outline"} size={20} color={post.likedByMe ? colors.red : colors.textMuted} />
+        <TouchableOpacity style={[styles.action, post.likedByMe && styles.actionLiked]} onPress={() => onLike(post.id)}>
+          <Ionicons name={post.likedByMe ? "heart" : "heart-outline"} size={19} color={post.likedByMe ? colors.red : colors.textMuted} />
           <Text style={[styles.actionText, post.likedByMe && { color: colors.red }]}>{post.likeCount}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.action} onPress={toggleComments}>
-          <Ionicons name={open ? "chatbubble" : "chatbubble-outline"} size={19} color={open ? colors.primary : colors.textMuted} />
+        <TouchableOpacity style={[styles.action, open && styles.actionOpen]} onPress={toggleComments}>
+          <Ionicons name={open ? "chatbubble" : "chatbubble-outline"} size={18} color={open ? colors.primary : colors.textMuted} />
           <Text style={[styles.actionText, open && { color: colors.primary }]}>{post.commentCount}</Text>
         </TouchableOpacity>
       </View>
@@ -386,7 +400,12 @@ function timeAgo(d) {
 }
 
 const styles = StyleSheet.create({
-  h: { fontSize: 26, fontWeight: "800", color: colors.text, marginBottom: 12 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingTop: 56, paddingHorizontal: 16, paddingBottom: 18, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+  headerTitle: { color: "#fff", fontSize: 24, fontWeight: "800" },
+  headerSub: { color: "rgba(255,255,255,0.85)", fontSize: 13, marginTop: 3 },
+  headerIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+
+  composer: { marginTop: 16, marginBottom: 16 },
   input: { minHeight: 44, color: colors.text, textAlignVertical: "top", fontSize: 15 },
   composerRow: { flexDirection: "row", alignItems: "center", marginTop: 10 },
   attachBtn: {
@@ -413,20 +432,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  empty: { color: colors.textMuted, textAlign: "center", marginTop: 32 },
+  emptyWrap: { alignItems: "center", marginTop: 48, paddingHorizontal: 24 },
+  emptyIcon: { width: 64, height: 64, borderRadius: 32, backgroundColor: "#ECECF2", alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  emptyTitle: { color: colors.text, fontWeight: "700", fontSize: 16, marginBottom: 4 },
+  emptyText: { textAlign: "center", color: colors.textMuted, fontSize: 13, lineHeight: 19 },
 
   author: { flexDirection: "row", alignItems: "center", marginBottom: 10 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.purple, alignItems: "center", justifyContent: "center", marginRight: 10 },
-  avatarText: { color: "#fff", fontWeight: "800" },
-  authorName: { fontWeight: "700", color: colors.text },
-  time: { color: colors.textMuted, fontSize: 12 },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.purple, alignItems: "center", justifyContent: "center", marginRight: 10, borderWidth: 2, borderColor: "#EDE9FE" },
+  avatarText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  authorName: { fontWeight: "700", color: colors.text, fontSize: 15 },
+  time: { color: colors.textMuted, fontSize: 12, marginTop: 1 },
   deleteBtn: { padding: 6 },
-  content: { color: colors.text, lineHeight: 21, marginBottom: 12 },
+  content: { color: colors.text, lineHeight: 22, marginBottom: 12, fontSize: 15 },
   postImage: { width: "100%", height: 240, borderRadius: radius.md, marginBottom: 12, backgroundColor: colors.border },
 
-  actions: { flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 10 },
-  action: { flexDirection: "row", alignItems: "center", marginRight: 24 },
-  actionText: { color: colors.textMuted, marginLeft: 6, fontWeight: "600" },
+  actions: { flexDirection: "row", alignItems: "center", borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12, marginTop: 2 },
+  action: { flexDirection: "row", alignItems: "center", marginRight: 12, paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.bg },
+  actionLiked: { backgroundColor: "#FEE2E2" },
+  actionOpen: { backgroundColor: "#EDE9FE" },
+  actionText: { color: colors.textMuted, marginLeft: 6, fontWeight: "700", fontSize: 13 },
 
   commentSection: { marginTop: 12, borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 12 },
   noComments: { color: colors.textMuted, fontSize: 13, marginBottom: 10, fontStyle: "italic" },

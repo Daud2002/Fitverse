@@ -80,6 +80,8 @@ model Profile {
   currentGoal        String?
   targetGoal         String?
   level              Level   @default(easy)
+  recommendations    Json?
+  recommendationsAt  DateTime?
 }
 
 model WorkoutPlan {

@@ -20,8 +20,16 @@ function rangeWindow(range) {
   start.setHours(0, 0, 0, 0);
   if (range === "week") start.setDate(start.getDate() - 6);
   else if (range === "month") start.setDate(start.getDate() - 29);
+  // "today" / "day" / anything else: from local midnight to now.
   return { start, end };
 }
+
+const dayMs = 24 * 60 * 60 * 1000;
+const dayKey = (d) => {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x.getTime();
+};
 
 const recognizeSchema = z.object({ imageBase64: z.string().min(1) });
 
@@ -116,7 +124,14 @@ router.post(
 router.get(
   "/",
   asyncHandler(async (req, res) => {
-    const { start, end } = rangeWindow(req.query.range);
+    let start, end;
+    // ?date=YYYY-MM-DD returns a single calendar day (used by the history drill-down).
+    if (typeof req.query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(req.query.date)) {
+      start = new Date(`${req.query.date}T00:00:00`);
+      end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    } else {
+      ({ start, end } = rangeWindow(req.query.range));
+    }
     const meals = await prisma.meal.findMany({
       where: { userId: req.user.id, timestamp: { gte: start, lt: end } },
       orderBy: { timestamp: "desc" },
@@ -141,6 +156,61 @@ router.get(
       fat: agg._sum.fat || 0,
       goalCalories: 2000 * days,
     });
+  })
+);
+
+// Per-day nutrition buckets for the last N days (newest first), incl. today.
+// Single query + in-memory bucketing avoids one aggregate call per day.
+router.get(
+  "/history",
+  asyncHandler(async (req, res) => {
+    const days = Math.min(30, Math.max(1, Number(req.query.days) || 7));
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - (days - 1));
+
+    const meals = await prisma.meal.findMany({
+      where: { userId: req.user.id, timestamp: { gte: start } },
+      select: { calories: true, protein: true, carbs: true, fat: true, timestamp: true },
+    });
+
+    // Seed a bucket for every day in the window so empty days still appear.
+    const buckets = new Map();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < days; i++) {
+      const d = new Date(today.getTime() - i * dayMs);
+      buckets.set(d.getTime(), {
+        date: d.toISOString(),
+        calories: 0,
+        protein: 0,
+        carbs: 0,
+        fat: 0,
+        count: 0,
+      });
+    }
+
+    for (const m of meals) {
+      const b = buckets.get(dayKey(m.timestamp));
+      if (!b) continue;
+      b.calories += m.calories || 0;
+      b.protein += m.protein || 0;
+      b.carbs += m.carbs || 0;
+      b.fat += m.fat || 0;
+      b.count += 1;
+    }
+
+    // Newest first; round macros for display.
+    const history = [...buckets.values()]
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .map((b) => ({
+        ...b,
+        protein: Math.round(b.protein),
+        carbs: Math.round(b.carbs),
+        fat: Math.round(b.fat),
+      }));
+
+    res.json({ history, goalCalories: 2000 });
   })
 );
 

@@ -40,7 +40,7 @@ export const API_URL = resolveApiUrl();
 
 const TOKEN_KEY = "fitverse_token";
 
-async function getToken() {
+export async function getToken() {
   try {
     if (Platform.OS === "web") return globalThis.localStorage?.getItem(TOKEN_KEY) || null;
     return await SecureStore.getItemAsync(TOKEN_KEY);

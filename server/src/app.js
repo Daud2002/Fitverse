@@ -11,6 +11,7 @@ import socialRoutes from "./modules/social/social.routes.js";
 import gamificationRoutes from "./modules/gamification/gamification.routes.js";
 import sosRoutes from "./modules/sos/sos.routes.js";
 import dashboardRoutes from "./modules/dashboard/dashboard.routes.js";
+import coachRoutes from "./modules/coach/coach.routes.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
 import systemRoutes from "./modules/system/system.routes.js";
 
@@ -36,6 +37,7 @@ export function createApp() {
   app.use("/gamification", gamificationRoutes);
   app.use("/sos", sosRoutes);
   app.use("/dashboard", dashboardRoutes);
+  app.use("/coach", coachRoutes);
   app.use("/admin", adminRoutes);
 
   app.use(notFound);

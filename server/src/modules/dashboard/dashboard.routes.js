@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../../lib/prisma.js";
 import { asyncHandler } from "../../lib/http.js";
 import { requireAuth } from "../../middleware/auth.js";
+import { getRecommendations } from "../../ai/recommendationService.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -16,23 +17,38 @@ router.get(
     const weekStart = new Date(dayStart);
     weekStart.setDate(weekStart.getDate() - 7);
 
-    const [calAgg, workoutsCount, mealAgg, user, weekSessions, completedSessions] = await Promise.all([
-      prisma.workoutSession.aggregate({
-        where: { userId, startedAt: { gte: dayStart } },
-        _sum: { caloriesBurned: true },
-      }),
-      prisma.workoutSession.count({ where: { userId, completedAt: { not: null } } }),
-      prisma.meal.aggregate({
-        where: { userId, timestamp: { gte: dayStart } },
-        _sum: { calories: true },
-      }),
-      prisma.user.findUnique({ where: { id: userId } }),
-      prisma.workoutSession.count({ where: { userId, completedAt: { gte: weekStart } } }),
-      prisma.workoutSession.findMany({
-        where: { userId, completedAt: { not: null } },
-        select: { completedAt: true },
-      }),
-    ]);
+    const [calAgg, workoutsCount, mealAgg, user, weekSessions, completedSessions, topUsers] =
+      await Promise.all([
+        prisma.workoutSession.aggregate({
+          where: { userId, startedAt: { gte: dayStart } },
+          _sum: { caloriesBurned: true },
+        }),
+        prisma.workoutSession.count({ where: { userId, completedAt: { not: null } } }),
+        prisma.meal.aggregate({
+          where: { userId, timestamp: { gte: dayStart } },
+          _sum: { calories: true },
+        }),
+        prisma.user.findUnique({ where: { id: userId }, include: { profile: true } }),
+        prisma.workoutSession.count({ where: { userId, completedAt: { gte: weekStart } } }),
+        prisma.workoutSession.findMany({
+          where: { userId, completedAt: { not: null } },
+          select: { completedAt: true },
+        }),
+        prisma.user.findMany({
+          where: { role: "user" },
+          orderBy: { points: "desc" },
+          take: 5,
+          select: { id: true, name: true, points: true },
+        }),
+      ]);
+
+    // Personalized daily tips (cached per day inside the service; never throws).
+    let recommendations = null;
+    try {
+      recommendations = await getRecommendations(user, user.profile);
+    } catch (e) {
+      console.warn("[dashboard] recommendations failed:", e.message);
+    }
 
     res.json({
       greetingName: user.name,
@@ -47,6 +63,14 @@ router.get(
         { label: "Daily Calorie Goal", current: mealAgg._sum.calories || 0, target: 2000, unit: "kcal" },
         { label: "Water Intake", current: 6, target: 8, unit: "glasses" },
       ],
+      recommendations,
+      leaderboardPreview: topUsers.map((u, i) => ({
+        id: u.id,
+        name: u.name,
+        points: u.points,
+        rank: i + 1,
+        isMe: u.id === userId,
+      })),
     });
   })
 );

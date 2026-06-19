@@ -7,6 +7,7 @@ const icons = {
   index: "home",
   workout: "barbell",
   food: "restaurant",
+  coach: "chatbubbles",
   social: "people",
   goals: "trophy",
 };
@@ -28,6 +29,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="index" options={{ title: "Home" }} />
       <Tabs.Screen name="workout" options={{ title: "Workout" }} />
       <Tabs.Screen name="food" options={{ title: "Food" }} />
+      <Tabs.Screen name="coach" options={{ title: "Coach" }} />
       <Tabs.Screen name="social" options={{ title: "Social" }} />
       <Tabs.Screen name="goals" options={{ title: "Goals" }} />
     </Tabs>

@@ -84,6 +84,60 @@ export default function Home() {
             <ProgressBar value={g.current} max={g.target} />
           </Card>
         ))}
+
+        {data?.recommendations?.tips?.length > 0 && (
+          <>
+            <View style={[styles.sectionRow, { marginTop: 20 }]}>
+              <Text style={styles.section}>Recommended for You</Text>
+              <TouchableOpacity onPress={() => router.push("/(tabs)/coach")}>
+                <Text style={styles.link}>Ask Coach</Text>
+              </TouchableOpacity>
+            </View>
+            {data.recommendations.tips.map((t, i) => (
+              <Card key={i} style={[styles.tipCard, { marginBottom: 12 }]}>
+                <View style={styles.tipIcon}>
+                  <Ionicons name={t.icon || "sparkles"} size={20} color={colors.primary} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tipTitle}>{t.title}</Text>
+                  <Text style={styles.tipBody}>{t.body}</Text>
+                </View>
+              </Card>
+            ))}
+          </>
+        )}
+
+        {data?.leaderboardPreview?.length > 0 && (
+          <>
+            <View style={[styles.sectionRow, { marginTop: 20 }]}>
+              <Text style={styles.section}>Leaderboard</Text>
+              <TouchableOpacity onPress={() => router.push("/(tabs)/goals")}>
+                <Text style={styles.link}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            <Card>
+              {data.leaderboardPreview.map((u) => (
+                <View key={u.id} style={[styles.lbRow, u.isMe && styles.lbRowMe]}>
+                  <View style={styles.lbRank}>
+                    {u.rank <= 3 ? (
+                      <Ionicons
+                        name="medal"
+                        size={18}
+                        color={u.rank === 1 ? "#F59E0B" : u.rank === 2 ? "#9CA3AF" : "#B45309"}
+                      />
+                    ) : (
+                      <Text style={styles.lbRankNum}>{u.rank}</Text>
+                    )}
+                  </View>
+                  <Text style={[styles.lbName, u.isMe && styles.lbNameMe]} numberOfLines={1}>
+                    {u.isMe ? "You" : u.name}
+                  </Text>
+                  <Text style={styles.lbPoints}>{u.points} pts</Text>
+                </View>
+              ))}
+            </Card>
+          </>
+        )}
       </View>
     </ScrollView>
   );
@@ -107,4 +161,17 @@ const styles = StyleSheet.create({
   goalVal: { color: colors.textMuted },
   aiCta: { flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 16, borderRadius: radius.lg, marginTop: 8 },
   aiCtaText: { color: "#fff", fontWeight: "700", marginLeft: 8, fontSize: 15 },
+
+  tipCard: { flexDirection: "row", alignItems: "flex-start" },
+  tipIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: "#EDE9FE", alignItems: "center", justifyContent: "center", marginRight: 12 },
+  tipTitle: { fontWeight: "800", color: colors.text, fontSize: 15, marginBottom: 3 },
+  tipBody: { color: colors.textMuted, fontSize: 13, lineHeight: 19 },
+
+  lbRow: { flexDirection: "row", alignItems: "center", paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.border },
+  lbRowMe: { backgroundColor: "#EEF2FF", borderRadius: radius.md, paddingHorizontal: 10, marginHorizontal: -6, borderBottomWidth: 0 },
+  lbRank: { width: 28, alignItems: "center" },
+  lbRankNum: { color: colors.textMuted, fontWeight: "800", fontSize: 14 },
+  lbName: { flex: 1, marginLeft: 10, color: colors.text, fontWeight: "600" },
+  lbNameMe: { color: colors.primary, fontWeight: "800" },
+  lbPoints: { color: colors.textMuted, fontWeight: "700", fontSize: 13 },
 });

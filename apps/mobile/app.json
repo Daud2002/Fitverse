@@ -7,16 +7,29 @@
     "scheme": "fitverse",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#6C5CE7"
+      "backgroundColor": "#0B1020"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fitverse.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "FitVerse uses your camera to snap photos of meals for nutrition tracking.",
+        "NSPhotoLibraryUsageDescription": "FitVerse needs access to your photos to log meals from your gallery."
+      }
     },
     "android": {
+      "package": "com.fitverse.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#0B1020"
+      },
       "permissions": [
-        "CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -28,6 +41,14 @@
       "expo-secure-store",
       "expo-image-picker",
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "apiUrl": "https://api.myfitverse.site",
+      "router": {},
+      "eas": {
+        "projectId": "70549624-5dfd-476e-ae34-2937da9d7233"
+      }
+    },
+    "owner": "daud_mir"
   }
 }

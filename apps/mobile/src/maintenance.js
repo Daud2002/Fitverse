@@ -52,11 +52,11 @@ function MaintenanceScreen() {
   return (
     <View style={styles.fill}>
       <View style={styles.iconWrap}>
-        <Ionicons name="construct" size={48} color="#fff" />
+        <Ionicons name="lock-closed" size={48} color="#fff" />
       </View>
-      <Text style={styles.title}>APP IS UNDER MAINTENANCE</Text>
+      <Text style={styles.title}>APP ACCESS IS DENIED</Text>
       <Text style={styles.subtitle}>
-        We’re making things better. Please check back shortly — the app will resume automatically.
+        Access to the app is currently unavailable. Please check back shortly — the app will resume automatically.
       </Text>
       <ActivityIndicator color={colors.primary} style={{ marginTop: 28 }} />
     </View>
