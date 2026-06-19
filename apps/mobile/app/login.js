@@ -9,8 +9,8 @@ import { useAuth } from "../src/auth";
 
 export default function Login() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("abdul.daim@gmail.com");
-  const [password, setPassword] = useState("Pass123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function onSubmit() {

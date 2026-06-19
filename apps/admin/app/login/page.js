@@ -6,8 +6,8 @@ import { api, setToken } from "../../lib/api";
 
 export default function Login() {
   const router = useRouter();
-  const [email, setEmail] = useState("admin@fitverse.com");
-  const [password, setPassword] = useState("Pass123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
