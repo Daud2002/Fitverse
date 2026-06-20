@@ -81,6 +81,50 @@ router.get(
   })
 );
 
+router.get(
+  "/users/:id",
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, name: true, username: true, email: true, gender: true, role: true, isActive: true, points: true, createdAt: true },
+    });
+    if (!user) throw new HttpError(404, "User not found");
+    res.json({ user });
+  })
+);
+
+router.get(
+  "/users/:id/meals",
+  asyncHandler(async (req, res) => {
+    const { skip, take, page, limit } = paginate(req.query);
+    const where = { userId: req.params.id };
+    const [items, total] = await Promise.all([
+      prisma.meal.findMany({ where, skip, take, orderBy: { timestamp: "desc" } }),
+      prisma.meal.count({ where }),
+    ]);
+    res.json({ items, total, page, limit });
+  })
+);
+
+router.get(
+  "/users/:id/workouts",
+  asyncHandler(async (req, res) => {
+    const { skip, take, page, limit } = paginate(req.query);
+    const where = { userId: req.params.id };
+    const [items, total] = await Promise.all([
+      prisma.workoutSession.findMany({
+        where,
+        skip,
+        take,
+        orderBy: [{ completedAt: "desc" }, { startedAt: "desc" }],
+        include: { workoutPlan: { select: { name: true, category: true, level: true } } },
+      }),
+      prisma.workoutSession.count({ where }),
+    ]);
+    res.json({ items, total, page, limit });
+  })
+);
+
 const activeSchema = z.object({ isActive: z.boolean() });
 router.patch(
   "/users/:id",

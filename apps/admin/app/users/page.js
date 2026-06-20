@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Shell from "../../components/Shell";
 import { api } from "../../lib/api";
 
@@ -33,7 +34,7 @@ export default function Users() {
           <tbody>
             {items.map((u) => (
               <tr key={u.id}>
-                <td>{u.name}</td>
+                <td><Link href={`/users/${u.id}`} className="user-link">{u.name}</Link></td>
                 <td>@{u.username}</td>
                 <td>{u.email}</td>
                 <td style={{ textTransform: "capitalize" }}>{u.gender}</td>
@@ -41,8 +42,9 @@ export default function Users() {
                 <td>{u.points}</td>
                 <td><span className={`badge ${u.isActive ? "on" : "off"}`}>{u.isActive ? "Active" : "Disabled"}</span></td>
                 <td>
+                  <Link href={`/users/${u.id}`} className="btn sm secondary">View</Link>
                   {u.role !== "admin" && (
-                    <button className={`btn sm ${u.isActive ? "danger" : "secondary"}`} onClick={() => toggle(u)}>
+                    <button className={`btn sm ${u.isActive ? "danger" : "secondary"}`} style={{ marginLeft: 8 }} onClick={() => toggle(u)}>
                       {u.isActive ? "Disable" : "Enable"}
                     </button>
                   )}
